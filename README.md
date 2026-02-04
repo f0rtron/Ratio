@@ -49,9 +49,9 @@ The application stores data locally using SQLite and provides visual summaries a
 ### Setup
 
 ```bash
-git clone https://github.com/yourusername/Ratio.git
+git clone https://github.com/f0rtron/Ratio.git
 cd Ratio
-pip install -r requirements.txt
+pip install PyQt6 matplotlib reportlab sqlite3
 Run
 python main.py
 ```
