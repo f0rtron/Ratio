@@ -29,6 +29,18 @@ The application stores data locally using SQLite and provides visual summaries a
 - Formatted statements and transaction summaries
 
 ---
+## Screenshots
+
+### Dashboard
+![Dashboard](screenshots/dashboard.png)
+
+### Journal Entry
+![Journal Entry](screenshots/journal.png)
+
+### Reports
+![Reports](screenshots/reports.png)
+
+---
 
 ## Installation (End Users)
 
