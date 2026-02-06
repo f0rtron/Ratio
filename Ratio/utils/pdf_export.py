@@ -12,136 +12,140 @@ class PDFExporter:
         self.create_custom_styles()
 
     def create_custom_styles(self):
-        self.styles.add(ParagraphStyle(name='CenterTitle', parent=self.styles['Heading1'], alignment=TA_CENTER, spaceAfter=20))
+        self.styles.add(ParagraphStyle(name='CenterTitle', parent=self.styles['Heading1'], alignment=TA_CENTER, spaceAfter=10))
         self.styles.add(ParagraphStyle(name='SubTitle', parent=self.styles['Normal'], alignment=TA_CENTER, textColor=colors.grey))
 
-    # FIXED: Method name matches UI call
-    def generate_full_report(self, filename="Ratio_Financial_Report.pdf"):
+    def generate_full_report(self, start_date, end_date, filename="Ratio_Report.pdf"):
         doc = SimpleDocTemplate(filename, pagesize=A4)
         elements = []
 
-        # --- HEADER ---
-        elements.append(Paragraph("RATIO", self.styles['CenterTitle']))
-        elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", self.styles['SubTitle']))
+        # Header
+        elements.append(Paragraph("FINANCIAL REPORT", self.styles['CenterTitle']))
+        elements.append(Paragraph(f"Period: {start_date} to {end_date}", self.styles['SubTitle']))
         elements.append(Spacer(1, 30))
 
-        # --- 1. INCOME STATEMENT ---
-        elements.append(Paragraph("Income Statement", self.styles['Heading2']))
-        elements.append(self._build_income_statement())
+        # 1. Income Statement
+        elements.append(Paragraph(f"Income Statement", self.styles['Heading2']))
+        elements.append(self._build_income_statement(start_date, end_date))
         elements.append(Spacer(1, 30))
 
-        # --- 2. BALANCE SHEET ---
-        elements.append(Paragraph("Balance Sheet", self.styles['Heading2']))
-        elements.append(self._build_balance_sheet())
-        elements.append(PageBreak())
-
-        # --- 3. GENERAL LEDGER ---
-        elements.append(Paragraph("General Ledger (Journal)", self.styles['Heading2']))
-        elements.append(self._build_ledger_table())
-
-        doc.build(elements)
-        return filename
+        # 2. Balance Sheet
+        elements.append(Paragraph(f"Balance Sheet (As of {end_date})", self.styles['Heading2']))
+        elements.append(self._build_balance_sheet(end_date))
+        
+        try:
+            doc.build(elements)
+            return filename
+        except Exception as e:
+            raise e
 
     def _fmt(self, value):
-        if value < 0: return f"({abs(value):,.2f})"
-        return f"{value:,.2f}"
+        """Formats numbers: standard accounting format (negatives in parens)."""
+        try:
+            val = float(value)
+        except:
+            return str(value)
+            
+        if val < 0:
+            return f"({abs(val):,.2f})" # Returns (1,000.00) for negative
+        return f"{val:,.2f}"
 
-    def _build_income_statement(self):
-        accounts = self.db.get_account_balances()
+    def _build_income_statement(self, start, end):
+        accounts = self.db.get_balances_period(start, end)
         data = [['Account', 'Amount']]
         
-        rev_total = 0
-        exp_total = 0
+        rev = 0.0
+        exp = 0.0
         
+        # REVENUE
         data.append(['REVENUE', ''])
         for name, info in accounts.items():
             if info['type'] == 'Revenue':
-                data.append([name, self._fmt(info['balance'])])
-                rev_total += info['balance']
+                val = info['net_balance']
+                data.append([name, self._fmt(val)])
+                rev += val
         
+        # EXPENSES
         data.append(['EXPENSES', ''])
         for name, info in accounts.items():
             if info['type'] == 'Expense':
-                data.append([name, self._fmt(info['balance'])])
-                exp_total += info['balance']
+                val = info['net_balance']
+                data.append([name, self._fmt(val)])
+                exp += val
         
-        net_income = rev_total - exp_total
+        # NET INCOME CALCULATION
+        net = rev - exp
+        
         data.append(['', ''])
-        data.append(['NET INCOME', self._fmt(net_income)])
+        
+        # DYNAMIC LABEL: Changes based on Profit or Loss
+        if net >= 0:
+            label = "NET INCOME"
+        else:
+            label = "NET LOSS"
+            
+        data.append([label, self._fmt(net)])
         
         t = Table(data, colWidths=[350, 100])
         t.setStyle(self._get_table_style(has_total=True))
         return t
 
-    def _build_balance_sheet(self):
-        accounts = self.db.get_account_balances()
-        net_income = self.db.get_net_income()
+    def _build_balance_sheet(self, as_of):
+        accounts = self.db.get_balances_snapshot(as_of)
+        net_income = self.db.get_net_income(end_date=as_of) 
         
         data = [['Account', 'Amount']]
         
-        asset_total = 0
-        liab_total = 0
-        equity_total = 0
-
+        asset = 0.0
+        liab = 0.0
+        equity = 0.0
+        
         data.append(['ASSETS', ''])
         for name, info in accounts.items():
             if info['type'] == 'Asset':
-                data.append([name, self._fmt(info['balance'])])
-                asset_total += info['balance']
-        data.append(['TOTAL ASSETS', self._fmt(asset_total)])
+                val = info['net_balance']
+                data.append([name, self._fmt(val)])
+                asset += val
+        data.append(['TOTAL ASSETS', self._fmt(asset)])
         data.append(['', ''])
-
+        
         data.append(['LIABILITIES', ''])
         for name, info in accounts.items():
             if info['type'] == 'Liability':
-                data.append([name, self._fmt(info['balance'])])
-                liab_total += info['balance']
+                val = info['net_balance']
+                data.append([name, self._fmt(val)])
+                liab += val
         
         data.append(['EQUITY', ''])
         for name, info in accounts.items():
             if info['type'] == 'Equity':
-                data.append([name, self._fmt(info['balance'])])
-                equity_total += info['balance']
+                val = info['net_balance']
+                data.append([name, self._fmt(val)])
+                equity += val
+                
+        # Retained Earnings
+        data.append(['Retained Earnings (Net Income)', self._fmt(net_income)])
+        equity += net_income
         
-        data.append(['Net Income (Retained)', self._fmt(net_income)])
-        equity_total += net_income
+        data.append(['TOTAL LIAB & EQUITY', self._fmt(liab + equity)])
         
-        total_liab_equity = liab_total + equity_total
-        data.append(['TOTAL LIAB. & EQUITY', self._fmt(total_liab_equity)])
-
         t = Table(data, colWidths=[350, 100])
         t.setStyle(self._get_table_style(has_total=True))
         return t
 
-    def _build_ledger_table(self):
-        # We use the new double-entry getter
-        entries = self.db.get_ledger()
-        data = [['Date', 'Account', 'Desc', 'Debit', 'Credit']]
-        
-        # entry schema from get_ledger: 
-        # (id, trans_id, date, name, type, desc, debit, credit)
-        for row in entries:
-            data.append([
-                row[2], # Date
-                row[3], # Name
-                row[5], # Desc
-                self._fmt(row[6]), # Debit
-                self._fmt(row[7])  # Credit
-            ])
-            
-        t = Table(data, colWidths=[80, 120, 150, 70, 70])
-        t.setStyle(self._get_table_style())
-        return t
-
     def _get_table_style(self, has_total=False):
         style = [
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('ALIGN', (1,0), (-1,-1), 'RIGHT'), 
-            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), # Header Bold
+            ('ALIGN', (1,0), (-1,-1), 'RIGHT'),            # Numbers Right Aligned
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),    # Grid Lines
+            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke), # Header Color
             ('TEXTCOLOR', (0,0), (-1,-1), colors.black),
         ]
+        
         if has_total:
+            # Bold the last row
             style.append(('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'))
-            style.append(('LINEABOVE', (0,-1), (-1,-1), 1, colors.black))
+            # Add line above total
+            style.append(('LINEABOVE', (0,-1), (-1,-1), 1.5, colors.black))
+            
         return TableStyle(style)

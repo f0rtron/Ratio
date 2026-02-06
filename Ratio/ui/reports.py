@@ -1,7 +1,6 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QMessageBox, 
-                             QFrame, QHBoxLayout)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
+                             QFrame, QDateEdit, QGridLayout, QSizePolicy)
+from PyQt6.QtCore import Qt, QDate
 from utils.pdf_export import PDFExporter
 
 class ReportsPage(QWidget):
@@ -14,40 +13,75 @@ class ReportsPage(QWidget):
         self.setLayout(layout)
         layout.setContentsMargins(40, 40, 40, 40)
         
-        # --- TITLE ---
-        title = QLabel("Reports & Export")
+        # Title
+        title = QLabel("Financial Reports")
         title.setStyleSheet("font-size: 24px; font-weight: bold; color: #00ADB5;")
         layout.addWidget(title)
         
         layout.addSpacing(20)
         
-        # --- EXPORT CARD ---
+        # --- REPORT CONFIGURATION CARD ---
         card = QFrame()
         card.setStyleSheet("""
             QFrame {
-                background-color: #1e1e1e;
-                border-radius: 10px;
+                background-color: #1e1e1e; 
+                border-radius: 10px; 
                 padding: 30px;
+                border: 1px solid #333;
             }
         """)
         card_layout = QVBoxLayout(card)
         
-        info = QLabel("Generate Comprehensive Financial Report")
+        # Date Selection
+        date_layout = QGridLayout()
+        date_layout.setSpacing(15)
+        
+        lbl_start = QLabel("Period Start:")
+        lbl_start.setStyleSheet("color: white; font-weight: bold;")
+        self.start_date = QDateEdit()
+        self.start_date.setCalendarPopup(True)
+        self.start_date.setDate(QDate.currentDate().addMonths(-1))
+        self.start_date.setStyleSheet("padding: 8px; color: white; background: #333; border: 1px solid #555;")
+        
+        lbl_end = QLabel("Period End:")
+        lbl_end.setStyleSheet("color: white; font-weight: bold;")
+        self.end_date = QDateEdit()
+        self.end_date.setCalendarPopup(True)
+        self.end_date.setDate(QDate.currentDate())
+        self.end_date.setStyleSheet("padding: 8px; color: white; background: #333; border: 1px solid #555;")
+        
+        date_layout.addWidget(lbl_start, 0, 0)
+        date_layout.addWidget(self.start_date, 0, 1)
+        date_layout.addWidget(lbl_end, 1, 0)
+        date_layout.addWidget(self.end_date, 1, 1)
+        
+        card_layout.addLayout(date_layout)
+        card_layout.addSpacing(30)
+        
+        # Info
+        info = QLabel("Generate Financial Statements (PDF)")
         info.setStyleSheet("color: white; font-size: 18px; font-weight: bold;")
         
-        sub_info = QLabel("Includes Income Statement, Balance Sheet, and Full General Ledger.")
-        sub_info.setStyleSheet("color: #888; font-size: 14px; margin-bottom: 20px;")
+        sub_info = QLabel("Includes: Income Statement (P&L) and Balance Sheet.")
+        sub_info.setStyleSheet("color: #AAA; font-size: 14px; margin-bottom: 20px;")
         
-        self.export_btn = QPushButton("📄   Download PDF Report")
-        self.export_btn.setFixedSize(250, 60)
+        # --- FIXED BUTTON ---
+        self.export_btn = QPushButton("DOWNLOAD REPORT PDF") # Removed Emoji to be safe
+        self.export_btn.setFixedHeight(50)
         self.export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.export_btn.clicked.connect(self.export_all)
         self.export_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #00ADB5; color: white; border-radius: 8px;
-                font-size: 16px; font-weight: bold;
+            QPushButton { 
+                background-color: #00ADB5; 
+                color: #FFFFFF; 
+                border-radius: 5px; 
+                font-weight: bold; 
+                font-size: 14px;
+                border: none;
+                padding: 10px;
             }
             QPushButton:hover { background-color: #00D1DB; }
+            QPushButton:pressed { background-color: #008C94; }
         """)
         
         card_layout.addWidget(info)
@@ -58,9 +92,11 @@ class ReportsPage(QWidget):
         layout.addStretch()
 
     def export_all(self):
+        s_date = self.start_date.date().toString("yyyy-MM-dd")
+        e_date = self.end_date.date().toString("yyyy-MM-dd")
+        
         try:
-            filename = self.exporter.generate_full_report()
-            QMessageBox.information(self, "Export Complete", 
-                                  f"Report saved successfully as:\n{filename}")
+            filename = self.exporter.generate_full_report(s_date, e_date)
+            QMessageBox.information(self, "Success", f"Report generated successfully:\n\n{filename}")
         except Exception as e:
-            QMessageBox.critical(self, "Export Failed", f"Error: {str(e)}")
+            QMessageBox.critical(self, "Export Error", f"Failed to generate PDF:\n{str(e)}")
